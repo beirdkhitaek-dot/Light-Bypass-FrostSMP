@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "lastfmhud",
+  "version": "${version}",
+  "name": "Last.fm HUD",
+  "description": "A now-playing HUD powered by Last.fm. No login, works on Android (Zalith).",
+  "authors": ["Chukl"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["lastfmhud.LastFmHudClient"]
+  },
+  "mixins": ["lastfmhud.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
