@@ -39,6 +39,25 @@ public final class LastFm {
     private static String lastKey = "";
     private static long lastStarted, lastDuration;
     private static String lastArtUrl = "";
+    private static String lastFallbackArt = "";
+
+    private static boolean placeholder(String url) {
+        return url.isEmpty() || url.contains("2a96cbd8b46e442fc41c2b86b821562f");
+    }
+
+    /** Cover lookup on iTunes (free, no key) for tracks where Last.fm only has its grey placeholder. */
+    private static String itunesArt(String artist, String title) {
+        try {
+            HttpResponse<String> r = get("https://itunes.apple.com/search?media=music&entity=song&limit=1&term=" + enc(artist + " " + title));
+            if (r.statusCode() != 200) return "";
+            JsonObject o = JsonParser.parseString(r.body()).getAsJsonObject();
+            if (!o.has("results") || o.getAsJsonArray("results").size() == 0) return "";
+            String u = str(o.getAsJsonArray("results").get(0).getAsJsonObject(), "artworkUrl100");
+            return u.replace("100x100bb", "300x300bb");
+        } catch (Exception e) {
+            return "";
+        }
+    }
     private static int errors;
     private static long backoffUntil;
 
@@ -50,7 +69,7 @@ public final class LastFm {
     public static String status() { return status; }
 
     public static void start() {
-        EXECUTOR.scheduleWithFixedDelay(LastFm::poll, 1, 4, TimeUnit.SECONDS);
+        EXECUTOR.scheduleWithFixedDelay(LastFm::poll, 1, 2, TimeUnit.SECONDS);
     }
 
     private static String enc(String s) { return URLEncoder.encode(s, StandardCharsets.UTF_8); }
@@ -98,6 +117,7 @@ public final class LastFm {
 
             String key = artist + "\u0000" + title;
             if (!key.equals(lastKey)) {
+                lastFallbackArt = placeholder(artUrl) ? itunesArt(artist, title) : "";
                 lastKey = key;
                 lastStarted = System.currentTimeMillis();
                 lastDuration = 0;
@@ -115,6 +135,7 @@ public final class LastFm {
                 }
             }
             if (c.lyrics) Lyrics.load(artist, title, lastDuration, key); else Lyrics.clear();
+            if (placeholder(artUrl)) artUrl = lastFallbackArt;
             if (!artUrl.equals(lastArtUrl)) {
                 lastArtUrl = artUrl;
                 art = loadArt(artUrl);
@@ -142,7 +163,7 @@ public final class LastFm {
             if (url.isEmpty() || url.contains("2a96cbd8b46e442fc41c2b86b821562f")) return null; // Last.fm's "no cover" placeholder
             URI uri = URI.create(url);
             String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase();
-            if (!"https".equals(uri.getScheme()) || !(host.equals("lastfm.freetls.fastly.net") || host.endsWith(".last.fm"))) return null;
+            if (!"https".equals(uri.getScheme()) || !(host.equals("lastfm.freetls.fastly.net") || host.endsWith(".last.fm") || host.endsWith(".mzstatic.com"))) return null;
             HttpResponse<InputStream> r = HTTP.send(HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(10)).GET().build(),
                 HttpResponse.BodyHandlers.ofInputStream());
             byte[] bytes;
