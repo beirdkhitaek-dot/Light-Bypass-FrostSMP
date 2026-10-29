@@ -10,6 +10,8 @@ public final class HudStyles {
 
     static {
         register(new GlassStyle());
+        register(new KryptonStyle());
+        register(new SlateStyle());
     }
 
     private HudStyles() {}
