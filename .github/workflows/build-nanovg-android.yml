@@ -1,0 +1,48 @@
+name: Build NanoVG for Android (arm64)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get LWJGL source (3.3.3)
+        uses: actions/checkout@v4
+        with:
+          repository: LWJGL/lwjgl3
+          ref: 3.3.3
+          path: lwjgl3
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Show NanoVG native sources
+        run: |
+          cd lwjgl3/modules/lwjgl
+          find nanovg -name '*.c' -o -name '*.h' | sort
+          ls core/src/main/c | head -30
+
+      - name: Compile with Android NDK
+        run: |
+          set -e
+          NDK="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
+          CC="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang"
+          cd lwjgl3/modules/lwjgl
+          SRC=$(find nanovg/src -name '*.c')
+          echo "Compiling:"; echo "$SRC"
+          mkdir -p out
+          $CC -shared -fPIC -O2 -w \
+            -Icore/src/main/c -Icore/src/generated/c \
+            -Inanovg/src/main/c -Inanovg/src/generated/c \
+            -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" \
+            $SRC -o out/liblwjgl_nanovg.so -lm -ldl -llog
+          readelf -d out/liblwjgl_nanovg.so | grep -E 'NEEDED|SONAME'
+          echo "JNI exports: $(nm -D out/liblwjgl_nanovg.so | grep -c Java_org_lwjgl_nanovg)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: liblwjgl_nanovg-android-arm64
+          path: lwjgl3/modules/lwjgl/out/liblwjgl_nanovg.so
