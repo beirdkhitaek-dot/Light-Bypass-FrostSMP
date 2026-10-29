@@ -9,6 +9,11 @@ Setup (in game chat):
 3. `/lastfmhud user <your last.fm username>`
 4. Make sure your player scrobbles to Last.fm (Spotify: Settings -> Link Last.fm).
 
-Commands: `/lastfmhud toggle`, `/lastfmhud pos <x> <y>`, `/lastfmhud scale <0.5-4>`, `/lastfmhud status`.
+Commands: `/lastfmhud toggle`, `/lastfmhud style <glass>`, `/lastfmhud lyrics`, `/lastfmhud syncoffset <ms>`,
+`/lastfmhud pos <x> <y>`, `/lastfmhud scale <0.5-4>`, `/lastfmhud status`.
+
+Open chat and drag the HUD with the mouse/finger to move it (position is saved).
+Lyrics: synced lyrics from lrclib.net show under the card when found. Last.fm has no playback position, so use
+`/lastfmhud syncoffset` to nudge timing.
 Config file: `config/lastfmhud.json`. Shows title, artist, cover art and an estimated progress bar. Display only (Last.fm
 cannot control playback).

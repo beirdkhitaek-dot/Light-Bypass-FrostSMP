@@ -84,7 +84,7 @@ public final class LastFm {
                 : t.isJsonObject() ? t.getAsJsonObject() : null;
             boolean playing = tr != null && tr.has("@attr") && tr.get("@attr").isJsonObject()
                 && "true".equals(str(tr.getAsJsonObject("@attr"), "nowplaying"));
-            if (!playing) { now = null; status = "Nothing playing"; return; }
+            if (!playing) { now = null; status = "Nothing playing"; Lyrics.clear(); return; }
 
             String title = clean(str(tr, "name"));
             String artist = tr.has("artist") && tr.get("artist").isJsonObject() ? clean(str(tr.getAsJsonObject("artist"), "#text")) : "";
@@ -114,6 +114,7 @@ public final class LastFm {
                 } catch (Exception ignored) {
                 }
             }
+            if (c.lyrics) Lyrics.load(artist, title, lastDuration, key); else Lyrics.clear();
             if (!artUrl.equals(lastArtUrl)) {
                 lastArtUrl = artUrl;
                 art = loadArt(artUrl);

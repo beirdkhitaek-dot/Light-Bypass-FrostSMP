@@ -2,21 +2,28 @@ package lastfmhud;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.FilterMode;
+import lastfmhud.style.Frame;
+import lastfmhud.style.HudStyle;
+import lastfmhud.style.HudStyles;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.NativeImageBackedTexture;
-import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
+/** Draws the HUD with the selected style; lets you drag it while chat is open. */
 public final class HudRenderer {
     private static final int DEFAULT_ACCENT = 0xFFD51007;
     private static Identifier texture;
     private static int shownSerial = -1;
     private static int counter;
     private static int accent = DEFAULT_ACCENT;
+
+    // on-screen bounds in GUI units (updated every frame we draw); width 0 = not drawn
+    private static float bx, by, bw, bh;
+    private static boolean dragging;
+    private static double grabX, grabY;
 
     private HudRenderer() {}
 
@@ -27,7 +34,7 @@ public final class HudRenderer {
         }
     }
 
-    /** Average colour of the cover, pushed towards a vivid tone so it reads well on the dark card. */
+    /** Average colour of the cover, pushed towards a vivid tone so it reads well on a dark card. */
     private static int accentFrom(int[] px) {
         long r = 0, g = 0, b = 0;
         for (int p : px) {
@@ -39,11 +46,11 @@ public final class HudRenderer {
         float[] c = {r / (float) n, g / (float) n, b / (float) n};
         float max = Math.max(c[0], Math.max(c[1], c[2]));
         if (max < 1) return DEFAULT_ACCENT;
-        float lift = Math.min(2.2f, 230f / max); // brighten dull covers
+        float lift = Math.min(2.2f, 230f / max);
         float avg = (c[0] + c[1] + c[2]) / 3f;
         int out = 0xFF000000;
         for (int i = 0; i < 3; i++) {
-            float v = avg + (c[i] - avg) * 1.4f; // add saturation
+            float v = avg + (c[i] - avg) * 1.4f;
             int ch = Math.max(40, Math.min(255, Math.round(v * lift)));
             out |= ch << (16 - 8 * i);
         }
@@ -75,67 +82,89 @@ public final class HudRenderer {
         }
     }
 
-    /** Filled rounded rectangle built from horizontal strips. */
-    private static void roundRect(DrawContext ctx, int x, int y, int w, int h, int r, int color) {
-        r = Math.max(0, Math.min(r, Math.min(w, h) / 2));
-        for (int i = 0; i < r; i++) {
-            double dy = r - i - 0.5;
-            int inset = r - (int) Math.round(Math.sqrt(Math.max(0, r * r - dy * dy)));
-            ctx.fill(x + inset, y + i, x + w - inset, y + i + 1, color);
-            ctx.fill(x + inset, y + h - 1 - i, x + w - inset, y + h - i, color);
-        }
-        if (h - 2 * r > 0) ctx.fill(x, y + r, x + w, y + h - r, color);
-    }
-
-    private static String time(long ms) {
-        long s = Math.max(0, ms / 1000);
-        return (s / 60) + ":" + (s % 60 < 10 ? "0" : "") + (s % 60);
+    /** Mouse position in GUI units. */
+    private static double[] mouseGui(MinecraftClient mc) {
+        var w = mc.getWindow();
+        double x = mc.mouse.getX() * w.getScaledWidth() / Math.max(1, w.getWidth());
+        double y = mc.mouse.getY() * w.getScaledHeight() / Math.max(1, w.getHeight());
+        return new double[] {x, y};
     }
 
     public static void render(DrawContext ctx) {
         Config c = Config.get();
-        if (!c.enabled) return;
+        bw = 0;
+        if (!c.enabled) { dragging = false; return; }
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.options.hudHidden || mc.textRenderer == null) return;
+        boolean chatOpen = mc.currentScreen instanceof ChatScreen;
+        if (!chatOpen) dragging = false;
+
         LastFm.Now n = LastFm.now();
-        if (n == null) return;
+        if (n == null && !chatOpen) return; // nothing to show; in chat we show a placeholder so it can be moved
         syncTexture(mc);
 
-        int w = 168, h = 56;
-        int glow = (accent & 0x00FFFFFF);
+        HudStyle style = HudStyles.get(c.style);
+        Frame frame;
+        if (n != null) {
+            long elapsed = System.currentTimeMillis() - n.startedMs();
+            String[] lyr = c.lyrics ? Lyrics.around(elapsed + c.lyricsOffsetMs) : null;
+            frame = new Frame(n.title(), n.artist(), elapsed, n.durationMs(), texture, accent, lyr);
+        } else {
+            frame = new Frame("Last.fm HUD", "Drag me to move", 0, 0, null, DEFAULT_ACCENT, null);
+        }
+
+        float scale = c.scale;
+        bw = style.width() * scale;
+        bh = style.height(frame.lyrics() != null) * scale;
+        var win = mc.getWindow();
+
+        if (dragging) {
+            double[] m = mouseGui(mc);
+            c.x = (int) Math.max(0, Math.min(win.getScaledWidth() - bw, m[0] - grabX));
+            c.y = (int) Math.max(0, Math.min(win.getScaledHeight() - bh, m[1] - grabY));
+        }
+        bx = c.x;
+        by = c.y;
+
         var m = ctx.getMatrices();
         m.pushMatrix();
         m.translate((float) c.x, (float) c.y);
-        m.scale(c.scale, c.scale);
-
-        // glass card: soft accent-tinted rim, dark translucent body, faint top highlight
-        roundRect(ctx, 0, 0, w, h, 7, 0x40000000 | glow);
-        roundRect(ctx, 1, 1, w - 2, h - 2, 6, 0xC4121216);
-        roundRect(ctx, 2, 2, w - 4, 10, 5, 0x10FFFFFF);
-
-        int tx = 10;
-        if (texture != null) {
-            roundRect(ctx, 7, 7, 42, 42, 4, 0xFF000000 | glow);
-            ctx.drawTexture(RenderPipelines.GUI_TEXTURED, texture, 8, 8, 0.0F, 0.0F, 40, 40, 64, 64, 64, 64, 0xFFFFFFFF);
-            tx = 56;
+        m.scale(scale, scale);
+        try {
+            style.draw(ctx, mc, frame);
+        } finally {
+            m.popMatrix();
         }
-        TextRenderer f = mc.textRenderer;
-        int maxW = w - tx - 8;
-        ctx.drawText(f, Text.literal(f.trimToWidth(n.title(), maxW)), tx, 9, 0xFFFFFFFF, false);
-        ctx.drawText(f, Text.literal(f.trimToWidth(n.artist(), maxW)), tx, 21, 0xFFB5B5BD, false);
-
-        int barW = w - tx - 8;
-        roundRect(ctx, tx, 36, barW, 3, 1, 0x40FFFFFF);
-        if (n.durationMs() > 0) {
-            long pos = Math.min(n.durationMs(), Math.max(0, System.currentTimeMillis() - n.startedMs()));
-            int fill = Math.max(2, (int) (barW * pos / n.durationMs()));
-            roundRect(ctx, tx, 36, fill, 3, 1, accent);
-            String total = time(n.durationMs());
-            ctx.drawText(f, Text.literal(time(pos)), tx, 43, 0xFF9A9AA3, false);
-            ctx.drawText(f, Text.literal(total), tx + barW - f.getWidth(total), 43, 0xFF9A9AA3, false);
-        } else {
-            roundRect(ctx, tx, 36, Math.min(barW, 26), 3, 1, accent); // unknown length: short accent stub
+        if (chatOpen && dragging) { // thin outline while moving
+            ctx.fill((int) bx - 1, (int) by - 1, (int) (bx + bw) + 1, (int) by, 0xAAFFFFFF);
+            ctx.fill((int) bx - 1, (int) (by + bh), (int) (bx + bw) + 1, (int) (by + bh) + 1, 0xAAFFFFFF);
+            ctx.fill((int) bx - 1, (int) by, (int) bx, (int) (by + bh), 0xAAFFFFFF);
+            ctx.fill((int) (bx + bw), (int) by, (int) (bx + bw) + 1, (int) (by + bh), 0xAAFFFFFF);
         }
-        m.popMatrix();
+    }
+
+    /**
+     * Left mouse button press (action 1) / release (action 0). Returns true when the click was used for dragging and
+     * should not reach the chat screen.
+     */
+    public static boolean mouseButton(int action) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (action == 1) {
+            if (!(mc.currentScreen instanceof ChatScreen) || bw <= 0) return false;
+            double[] m = mouseGui(mc);
+            if (m[0] >= bx && m[0] <= bx + bw && m[1] >= by && m[1] <= by + bh) {
+                dragging = true;
+                grabX = m[0] - bx;
+                grabY = m[1] - by;
+                return true;
+            }
+            return false;
+        }
+        if (action == 0 && dragging) {
+            dragging = false;
+            Config.save();
+            return true;
+        }
+        return false;
     }
 }

@@ -15,6 +15,9 @@ public final class Config {
     public int x = 6;
     public int y = 40;
     public float scale = 1.0f;
+    public String style = "glass";
+    public boolean lyrics = true;
+    public int lyricsOffsetMs = 0;
 
     private static Config instance = new Config();
 
@@ -37,7 +40,9 @@ public final class Config {
         }
         if (instance.apiKey == null) instance.apiKey = "";
         if (instance.user == null) instance.user = "";
+        if (instance.style == null || instance.style.isBlank()) instance.style = "glass";
         if (instance.scale < 0.5f || instance.scale > 4f) instance.scale = 1.0f;
+        instance.lyricsOffsetMs = Math.max(-10000, Math.min(10000, instance.lyricsOffsetMs));
         save();
     }
 

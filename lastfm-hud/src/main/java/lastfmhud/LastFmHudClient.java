@@ -3,7 +3,9 @@ package lastfmhud;
 import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import lastfmhud.style.HudStyles;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
@@ -15,8 +17,18 @@ public final class LastFmHudClient implements ClientModInitializer {
     public void onInitializeClient() {
         Config.load();
         LastFm.start();
-        ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> dispatcher.register(
-            ClientCommandManager.literal("lastfmhud")
+        ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
+            LiteralArgumentBuilder<FabricClientCommandSource> styleNode = ClientCommandManager.literal("style");
+            for (String id : HudStyles.ids()) {
+                styleNode.then(ClientCommandManager.literal(id).executes(ctx -> {
+                    Config.get().style = id;
+                    Config.save();
+                    return say(ctx, "Style set to " + id);
+                }));
+            }
+            styleNode.executes(ctx -> say(ctx, "Styles: " + String.join(", ", HudStyles.ids()) + " (now: " + Config.get().style + ")"));
+
+            dispatcher.register(ClientCommandManager.literal("lastfmhud")
                 .then(ClientCommandManager.literal("user").then(ClientCommandManager.argument("name", StringArgumentType.word())
                     .executes(ctx -> {
                         Config.get().user = StringArgumentType.getString(ctx, "name");
@@ -34,6 +46,18 @@ public final class LastFmHudClient implements ClientModInitializer {
                     Config.save();
                     return say(ctx, Config.get().enabled ? "HUD on" : "HUD off");
                 }))
+                .then(styleNode)
+                .then(ClientCommandManager.literal("lyrics").executes(ctx -> {
+                    Config.get().lyrics = !Config.get().lyrics;
+                    Config.save();
+                    return say(ctx, Config.get().lyrics ? "Lyrics on" : "Lyrics off");
+                }))
+                .then(ClientCommandManager.literal("syncoffset")
+                    .then(ClientCommandManager.argument("ms", IntegerArgumentType.integer(-10000, 10000)).executes(ctx -> {
+                        Config.get().lyricsOffsetMs = IntegerArgumentType.getInteger(ctx, "ms");
+                        Config.save();
+                        return say(ctx, "Lyrics offset set to " + Config.get().lyricsOffsetMs + " ms (positive = lyrics earlier)");
+                    })))
                 .then(ClientCommandManager.literal("pos")
                     .then(ClientCommandManager.argument("x", IntegerArgumentType.integer(0, 4000))
                         .then(ClientCommandManager.argument("y", IntegerArgumentType.integer(0, 4000)).executes(ctx -> {
@@ -50,10 +74,11 @@ public final class LastFmHudClient implements ClientModInitializer {
                     })))
                 .then(ClientCommandManager.literal("status").executes(ctx -> {
                     Config c = Config.get();
-                    return say(ctx, (c.enabled ? "on" : "off") + ", user=" + (c.user.isBlank() ? "(not set)" : c.user)
+                    return say(ctx, (c.enabled ? "on" : "off") + ", style=" + c.style + ", lyrics=" + (c.lyrics ? "on" : "off")
+                        + ", user=" + (c.user.isBlank() ? "(not set)" : c.user)
                         + ", key=" + (c.apiKey.isBlank() ? "(not set)" : "set") + ", " + LastFm.status());
-                }))
-        ));
+                })));
+        });
     }
 
     private static int say(CommandContext<FabricClientCommandSource> ctx, String message) {
