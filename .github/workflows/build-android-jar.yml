@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 env:
-  VERSION: 0.5.79-android.2
+  VERSION: 0.5.79-android.3
 
 jobs:
   build:
@@ -144,7 +144,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.VERSION }}
-          name: "Cherry Blossom ${{ env.VERSION }} - Android support, Spotify Web API HUD, Wheel GUI crash fix"
+          name: "Cherry Blossom ${{ env.VERSION }} - Android support, Spotify Web API HUD, Wheel GUI crash fix, Last.fm source"
           body: |
             Android (Zalith) support for the Cherry Blossom client.
             - Device key stored in an owner-only file on non-Windows systems (license check unchanged).
