@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 env:
-  VERSION: 0.5.79-android
+  VERSION: 0.5.79-android.2
 
 jobs:
   build:
@@ -66,6 +66,72 @@ jobs:
           grep '"version"' base/fabric.mod.json
           # Drop any old signature files (the jar is modified).
           rm -f base/META-INF/*.SF base/META-INF/*.RSA base/META-INF/*.DSA
+
+      - name: Fix the Wheel-layout crash (null guard in the GUI)
+        run: |
+          set -e
+          mkdir -p patchtool asm
+          curl -fsSL -o asm/asm.jar https://repo1.maven.org/maven2/org/ow2/asm/asm/9.7/asm-9.7.jar
+          curl -fsSL -o asm/asm-tree.jar https://repo1.maven.org/maven2/org/ow2/asm/asm-tree/9.7/asm-tree-9.7.jar
+          cat > patchtool/PatchClickGui.java <<'EOF'
+          import org.objectweb.asm.*;
+          import org.objectweb.asm.tree.*;
+          import java.nio.file.*;
+
+          /** Adds "if (this.wheelCategories == null) return;" to ClickGui methods that dereference it. */
+          public class PatchClickGui {
+              public static void main(String[] args) throws Exception {
+                  Path path = Path.of(args[0]);
+                  ClassNode cn = new ClassNode();
+                  new ClassReader(Files.readAllBytes(path)).accept(cn, 0);
+                  String fieldDesc = null;
+                  for (FieldNode f : cn.fields) if (f.name.equals("wheelCategories")) fieldDesc = f.desc;
+                  if (fieldDesc == null) throw new IllegalStateException("field wheelCategories not found");
+                  int patched = 0;
+                  for (MethodNode m : cn.methods) {
+                      if ((m.access & (Opcodes.ACC_STATIC | Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0) continue;
+                      boolean target = m.name.equals("drawWheelModules");
+                      for (AbstractInsnNode i = m.instructions.getFirst(); i != null && !target; i = i.getNext()) {
+                          if (i instanceof FieldInsnNode f && i.getOpcode() == Opcodes.GETFIELD
+                                  && f.name.equals("wheelCategories") && f.owner.equals(cn.name)) {
+                              AbstractInsnNode n = i.getNext();
+                              while (n != null && n.getOpcode() < 0) n = n.getNext();
+                              if (n instanceof MethodInsnNode mi && mi.name.equals("stream")) target = true;
+                          }
+                      }
+                      if (!target) continue;
+                      if (!m.desc.endsWith(")V")) throw new IllegalStateException("non-void method needs a manual fix: " + m.name + m.desc);
+                      AbstractInsnNode n = m.instructions.getFirst();
+                      while (n instanceof LabelNode || n instanceof LineNumberNode) n = n.getNext();
+                      if (n instanceof FrameNode) throw new IllegalStateException("unexpected frame at start of " + m.name);
+                      LabelNode ok = new LabelNode();
+                      InsnList guard = new InsnList();
+                      guard.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                      guard.add(new FieldInsnNode(Opcodes.GETFIELD, cn.name, "wheelCategories", fieldDesc));
+                      guard.add(new JumpInsnNode(Opcodes.IFNONNULL, ok));
+                      guard.add(new InsnNode(Opcodes.RETURN));
+                      guard.add(ok);
+                      guard.add(new FrameNode(Opcodes.F_SAME, 0, null, 0, null));
+                      m.instructions.insert(guard);
+                      patched++;
+                      System.out.println("guarded " + m.name + m.desc);
+                  }
+                  if (patched == 0) throw new IllegalStateException("nothing patched");
+                  ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+                  cn.accept(cw);
+                  Files.write(path, cw.toByteArray());
+                  System.out.println("patched " + patched + " method(s)");
+              }
+          }
+          EOF
+          javac -cp asm/asm.jar:asm/asm-tree.jar -d patchtool patchtool/PatchClickGui.java
+          java -cp patchtool:asm/asm.jar:asm/asm-tree.jar PatchClickGui base/dev/cherryblossom/client/ui/ClickGui.class
+          # Make sure the patched class still verifies as valid bytecode
+          javap -p -c -cp base dev.cherryblossom.client.ui.ClickGui | grep -c wheelCategories
+
+      - name: Pack the jar
+        run: |
+          set -e
           (cd base && zip -qr -X "../out/cherryblossom-client-${VERSION}.jar" .)
           ls -l out
 
@@ -78,11 +144,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.VERSION }}
-          name: "Cherry Blossom ${{ env.VERSION }} - Android support + Spotify Web API HUD"
+          name: "Cherry Blossom ${{ env.VERSION }} - Android support, Spotify Web API HUD, Wheel GUI crash fix"
           body: |
             Android (Zalith) support for the Cherry Blossom client.
             - Device key stored in an owner-only file on non-Windows systems (license check unchanged).
             - Spotify HUD on non-Windows via the Spotify Web API. Setup: put your Client ID in
               config/cherryblossom/spotify/spotify-api.json and add redirect URI http://127.0.0.1:8888/callback
-            Untested build: if it fails to load, send the Zalith latest.log.
+            - Fixes the NullPointerException (wheelCategories is null) in the Wheel GUI layout.
           files: out/*.jar
