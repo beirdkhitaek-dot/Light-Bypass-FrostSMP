@@ -19,28 +19,39 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Show NanoVG native sources
+      - name: Diagnostics
         run: |
           cd lwjgl3/modules/lwjgl
-          find nanovg -name '*.c' -o -name '*.h' | sort
-          ls core/src/main/c | head -30
+          echo "--- where warnings macros are defined:"
+          grep -rn "define DISABLE_WARNINGS\|define ENABLE_WARNINGS" core/src/main/c | head
+          echo "--- head of common_tools.h:"
+          sed -n 1,40p core/src/main/c/common_tools.h
+          echo "--- stb headers:"
+          find . -name 'stb_truetype.h' -o -name 'stb_image.h' | head
+          echo "--- GL headers:"
+          find . -path '*opengl*' -name '*.h' | head
 
       - name: Compile with Android NDK
         run: |
-          set -e
           NDK="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
           CC="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang"
           cd lwjgl3/modules/lwjgl
-          SRC=$(find nanovg/src -name '*.c')
-          echo "Compiling:"; echo "$SRC"
-          mkdir -p out
-          $CC -shared -fPIC -O2 -w \
-            -Icore/src/main/c -Icore/src/generated/c \
-            -Inanovg/src/main/c -Inanovg/src/generated/c \
-            -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" \
-            $SRC -o out/liblwjgl_nanovg.so -lm -ldl -llog
+          STB=$(dirname "$(find . -name stb_truetype.h | head -1)")
+          echo "stb include dir: $STB"
+          INC="-Icore/src/main/c -Icore/src/main/c/linux -Icore/src/generated/c -Inanovg/src/main/c -Inanovg/src/generated/c -I$STB -I$JAVA_HOME/include -I$JAVA_HOME/include/linux"
+          DEFS="-DLWJGL_LINUX -DLWJGL_arm64 -DNDEBUG"
+          mkdir -p out obj
+          FAIL=0
+          for f in $(find nanovg/src -name '*.c') core/src/main/c/common_tools.c; do
+            o=obj/$(basename "$f" .c).o
+            echo "== $f"
+            if ! $CC -c -fPIC -O2 -w $DEFS $INC "$f" -o "$o"; then FAIL=1; fi
+          done
+          if [ "$FAIL" = "1" ]; then echo "SOME FILES FAILED (see errors above)"; exit 1; fi
+          $CC -shared obj/*.o -o out/liblwjgl_nanovg.so -lm -ldl -llog
           readelf -d out/liblwjgl_nanovg.so | grep -E 'NEEDED|SONAME'
           echo "JNI exports: $(nm -D out/liblwjgl_nanovg.so | grep -c Java_org_lwjgl_nanovg)"
+          echo "undefined non-libc symbols:"; nm -D --undefined-only out/liblwjgl_nanovg.so | grep -vE ' (U|w) (mem|str|str|fopen|fclose|fread|fseek|ftell|f?printf|s?printf|malloc|calloc|realloc|free|qsort|abs|[a-z]+f?)$' | head -30 || true
 
       - uses: actions/upload-artifact@v4
         with:
