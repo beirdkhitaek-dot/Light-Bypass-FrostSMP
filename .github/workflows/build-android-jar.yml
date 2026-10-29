@@ -1,0 +1,88 @@
+name: Build Cherry Blossom android jar
+
+# Put these two files in the repo root:
+#   CherryBlossom.jar                                  (the full client jar, 0.5.79)
+#   cherryblossom-0.5.80-android-source.zip            (the Android source zip)
+# Then run: Actions > "Build Cherry Blossom android jar" > Run workflow.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  VERSION: 0.5.79-android
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Check inputs
+        run: |
+          test -f CherryBlossom.jar || { echo "CherryBlossom.jar is missing from the repo root"; exit 1; }
+          test -f cherryblossom-0.5.80-android-source.zip || { echo "source zip is missing from the repo root"; exit 1; }
+
+      - name: Unpack the android source
+        run: unzip -q cherryblossom-0.5.80-android-source.zip -d work
+
+      - name: Compile the patched classes (Loom, Minecraft 1.21.11)
+        working-directory: work/source
+        run: |
+          chmod +x gradlew
+          ./gradlew build --console=plain
+
+      - name: Overlay the patched classes onto the full client jar
+        run: |
+          set -e
+          rm -rf base built out
+          mkdir base built out
+          unzip -q CherryBlossom.jar -d base
+          unzip -q work/source/build/libs/cherryblossom-source-built-1.0.0+1.21.11.jar -d built
+          # Only these classes change. Everything else stays exactly as in the original jar.
+          for pattern in \
+            'cherryblossom/integration/DeviceIdentity*.class' \
+            'cherryblossom/feature/SpotifyApiSource*.class' \
+            'cherryblossom/feature/SpotifyNowPlaying*.class' \
+            'cherryblossom/feature/SpotifyHudRenderer*.class'
+          do
+            ls built/$pattern >/dev/null 2>&1 || { echo "Missing compiled class: $pattern"; exit 1; }
+            for f in built/$pattern; do
+              rel="${f#built/}"
+              mkdir -p "base/$(dirname "$rel")"
+              cp "$f" "base/$rel"
+              echo "patched $rel"
+            done
+          done
+          # Make the version visible in the build.
+          sed -i 's/"version": "0.5.79"/"version": "'"$VERSION"'"/' base/fabric.mod.json
+          grep '"version"' base/fabric.mod.json
+          # Drop any old signature files (the jar is modified).
+          rm -f base/META-INF/*.SF base/META-INF/*.RSA base/META-INF/*.DSA
+          (cd base && zip -qr -X "../out/cherryblossom-client-${VERSION}.jar" .)
+          ls -l out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cherryblossom-client-${{ env.VERSION }}
+          path: out/*.jar
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: "Cherry Blossom ${{ env.VERSION }} - Android support + Spotify Web API HUD"
+          body: |
+            Android (Zalith) support for the Cherry Blossom client.
+            - Device key stored in an owner-only file on non-Windows systems (license check unchanged).
+            - Spotify HUD on non-Windows via the Spotify Web API. Setup: put your Client ID in
+              config/cherryblossom/spotify/spotify-api.json and add redirect URI http://127.0.0.1:8888/callback
+            Untested build: if it fails to load, send the Zalith latest.log.
+          files: out/*.jar
