@@ -9,7 +9,7 @@ Setup (in game chat):
 3. `/lastfmhud user <your last.fm username>`
 4. Make sure your player scrobbles to Last.fm (Spotify: Settings -> Link Last.fm).
 
-Commands: `/lastfmhud toggle`, `/lastfmhud style <glass|krypton|slate>`, `/lastfmhud lyrics`, `/lastfmhud syncoffset <ms>`,
+Commands: `/lastfmhud toggle`, `/lastfmhud style <glass|krypton|slate|spotify>`, `/lastfmhud lyrics`, `/lastfmhud syncoffset <ms>`,
 `/lastfmhud pos <x> <y>`, `/lastfmhud scale <0.5-4>`, `/lastfmhud status`.
 
 Open chat and drag the HUD with the mouse/finger to move it (position is saved).

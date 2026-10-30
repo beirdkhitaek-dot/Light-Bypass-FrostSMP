@@ -12,6 +12,7 @@ public final class HudStyles {
         register(new GlassStyle());
         register(new KryptonStyle());
         register(new SlateStyle());
+        register(new SpotifyStyle());
     }
 
     private HudStyles() {}
