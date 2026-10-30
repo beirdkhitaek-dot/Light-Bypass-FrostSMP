@@ -13,6 +13,10 @@ public final class HudStyles {
         register(new KryptonStyle());
         register(new SlateStyle());
         register(new SpotifyStyle());
+        register(new FullStyle());
+        register(new MiniStyle());
+        register(new VinylStyle());
+        register(new CompactStyle());
     }
 
     private HudStyles() {}

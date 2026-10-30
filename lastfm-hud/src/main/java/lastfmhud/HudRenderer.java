@@ -27,6 +27,11 @@ public final class HudRenderer {
 
     private HudRenderer() {}
 
+    /** Current cover texture / accent, for the live preview in the settings screen. */
+    public static Identifier currentTexture() { return texture; }
+
+    public static int currentAccent() { return accent; }
+
     private static final class ArtTexture extends NativeImageBackedTexture {
         ArtTexture(NativeImage image) {
             super(() -> "LastFmHud art", image);
@@ -113,22 +118,29 @@ public final class HudRenderer {
             frame = new Frame("Last.fm HUD", "Drag me, tap to open settings", 0, 0, null, c.customAccent ? 0xFF000000 | c.accentColor : DEFAULT_ACCENT, null);
         }
 
+        var win = mc.getWindow();
         float scale = c.scale;
+        // never wider / taller than the screen, whatever the resolution or GUI scale
+        scale = Math.min(scale, Math.min(win.getScaledWidth() / (float) style.width(),
+            win.getScaledHeight() / (float) style.height(frame.lyrics() != null)));
+        scale = Math.max(0.2f, scale);
         bw = style.width() * scale;
         bh = style.height(frame.lyrics() != null) * scale;
-        var win = mc.getWindow();
 
         if (dragging) {
             double[] m = mouseGui(mc);
             c.x = (int) Math.max(0, Math.min(win.getScaledWidth() - bw, m[0] - grabX));
             c.y = (int) Math.max(0, Math.min(win.getScaledHeight() - bh, m[1] - grabY));
         }
-        bx = c.x;
-        by = c.y;
+        // keep it on screen after a resolution / GUI-scale change (saved position is left untouched)
+        int drawX = (int) Math.max(0, Math.min(win.getScaledWidth() - bw, c.x));
+        int drawY = (int) Math.max(0, Math.min(win.getScaledHeight() - bh, c.y));
+        bx = drawX;
+        by = drawY;
 
         var m = ctx.getMatrices();
         m.pushMatrix();
-        m.translate((float) c.x, (float) c.y);
+        m.translate((float) drawX, (float) drawY);
         m.scale(scale, scale);
         try {
             style.draw(ctx, mc, frame);

@@ -9,7 +9,7 @@ Setup (in game chat):
 3. `/lastfmhud user <your last.fm username>`
 4. Make sure your player scrobbles to Last.fm (Spotify: Settings -> Link Last.fm).
 
-Commands: `/lastfmhud toggle`, `/lastfmhud style <glass|krypton|slate|spotify>`, `/lastfmhud lyrics`, `/lastfmhud syncoffset <ms>`,
+Commands: `/lastfmhud toggle`, `/lastfmhud style <glass|krypton|slate|spotify|full|mini|vinyl|compact>`, `/lastfmhud lyrics`, `/lastfmhud syncoffset <ms>`,
 `/lastfmhud pos <x> <y>`, `/lastfmhud scale <0.5-4>`, `/lastfmhud status`.
 
 Open chat and drag the HUD with the mouse/finger to move it (position is saved).
@@ -25,3 +25,9 @@ HSV colour wheel, style buttons, size / lyrics-sync sliders and Last.fm user + A
 ## GUI themes (1.5.0)
 In the settings screen, the Theme button (top right) switches between **Flat** and **Glass** (dark glassmorphism: rounded
 cards, soft glow). The choice is saved in `config/lastfmhud.json` as `guiTheme`.
+
+## 1.7.0 - new styles + responsive GUI
+New styles (all draggable): **Full**, **Mini**, **Vinyl**, **Compact**. Settings screen now has tabs (Style / Colour /
+Options / Account), a live preview, themes Flat / Glass / Light / AMOLED, and options: background opacity,
+"-remaining" time, scrolling long titles, cover shape (square / rounded / circle) and Reset. The GUI scales down to fit
+any resolution, text is trimmed to its box, and the HUD stays on screen after a resolution or GUI-scale change.
