@@ -21,3 +21,7 @@ cannot control playback).
 ## Settings GUI (1.4.0)
 Press **Right Shift** (or `/lastfmhud gui`, or tap the HUD while chat is open) to open a flat dark settings screen with an
 HSV colour wheel, style buttons, size / lyrics-sync sliders and Last.fm user + API key fields. No chat commands needed.
+
+## GUI themes (1.5.0)
+In the settings screen, the Theme button (top right) switches between **Flat** and **Glass** (dark glassmorphism: rounded
+cards, soft glow). The choice is saved in `config/lastfmhud.json` as `guiTheme`.

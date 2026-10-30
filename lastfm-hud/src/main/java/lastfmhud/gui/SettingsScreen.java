@@ -5,6 +5,7 @@ import com.mojang.blaze3d.textures.FilterMode;
 import java.util.ArrayList;
 import java.util.List;
 import lastfmhud.Config;
+import lastfmhud.style.Draw;
 import lastfmhud.style.HudStyles;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.RenderPipelines;
@@ -26,7 +27,7 @@ public final class SettingsScreen extends Screen {
     // flat dark theme
     private static final int DIM = 0xA0000000, PANEL = 0xFF16161A, BORDER = 0xFF2A2A31, FIELD = 0xFF1F1F25,
         HOVER = 0xFF2B2B33, TEXT = 0xFFF0F0F4, MUTED = 0xFF8A8A94;
-    private static final int[] PRESETS = {0xE0457B, 0xD51007, 0xFF9A1F, 0x2ECC71, 0x2DB7F5, 0x9B6BFF};
+    private static final int[] PRESETS = {0xE0457B, 0x4C7DFF, 0xFF9A1F, 0x2ECC71, 0x2DB7F5, 0x9B6BFF};
 
     private static Identifier wheel;
 
@@ -52,6 +53,23 @@ public final class SettingsScreen extends Screen {
     }
 
     private int accent() { return 0xFF000000 | (Config.get().accentColor & 0xFFFFFF); }
+
+    private boolean glass() { return "glass".equals(Config.get().guiTheme); }
+
+    /** Soft glow behind a rounded shape: a few expanding translucent copies in the accent colour. */
+    private void glow(DrawContext c, int x, int y, int w, int h, int r, int rgb, int strength) {
+        for (int i = 3; i >= 1; i--) {
+            int a = Math.max(4, strength / (i + 1));
+            Draw.roundRect(c, x - i * 2, y - i * 2, w + i * 4, h + i * 4, r + i * 2, (a << 24) | (rgb & 0xFFFFFF));
+        }
+    }
+
+    /** Glass card: faint rim, dark body, lighter top highlight. */
+    private void card(DrawContext c, int x, int y, int w, int h) {
+        Draw.roundRect(c, x, y, w, h, 9, 0x22FFFFFF);
+        Draw.roundRect(c, x + 1, y + 1, w - 2, h - 2, 8, 0xFF1A1D28);
+        Draw.roundRect(c, x + 2, y + 2, w - 4, 8, 6, 0x0CFFFFFF);
+    }
 
     private static int hsv(float h, float s, float v) {
         float c = v * s, x = c * (1 - Math.abs((h * 6) % 2 - 1)), m = v - c, r, g, b;
@@ -131,8 +149,14 @@ public final class SettingsScreen extends Screen {
     private boolean inside(int mx, int my, int x, int y, int w, int h) { return mx >= x && mx < x + w && my >= y && my < y + h; }
 
     private void button(DrawContext c, String label, int x, int y, int w, int h, boolean on, int mx, int my, Act press) {
-        int bg = on ? accent() : (inside(mx, my, x, y, w, h) ? HOVER : FIELD);
-        c.fill(x, y, x + w, y + h, bg);
+        if (glass()) {
+            if (on) glow(c, x, y, w, h, 7, accent(), 0x60);
+            int bg = on ? accent() : (inside(mx, my, x, y, w, h) ? 0xFF2A2F40 : 0xFF222634);
+            Draw.roundRect(c, x, y, w, h, 7, bg);
+            if (!on) Draw.roundRect(c, x + 1, y + 1, w - 2, 5, 4, 0x0CFFFFFF);
+        } else {
+            c.fill(x, y, x + w, y + h, on ? accent() : (inside(mx, my, x, y, w, h) ? HOVER : FIELD));
+        }
         c.drawText(textRenderer, label, x + (w - textRenderer.getWidth(label)) / 2, y + (h - 8) / 2 + 1, on ? 0xFF101014 : TEXT, false);
         hits.add(new Hit(x, y, w, h, press, null));
     }
@@ -141,10 +165,18 @@ public final class SettingsScreen extends Screen {
         c.drawText(textRenderer, label, x, y, MUTED, false);
         c.drawText(textRenderer, value, x + w - textRenderer.getWidth(value), y, TEXT, false);
         int by = y + 12;
-        c.fill(x, by, x + w, by + 4, FIELD);
-        c.fill(x, by, x + (int) (w * Math.max(0, Math.min(1, frac))), by + 4, accent());
-        int kx = x + (int) (w * Math.max(0, Math.min(1, frac)));
-        c.fill(kx - 2, by - 3, kx + 2, by + 7, TEXT);
+        int fillW = (int) (w * Math.max(0, Math.min(1, frac)));
+        int kx = x + fillW;
+        if (glass()) {
+            Draw.roundRect(c, x, by, w, 4, 2, 0xFF262B3A);
+            if (fillW > 0) { glow(c, x, by, fillW, 4, 2, accent(), 0x48); Draw.roundRect(c, x, by, Math.max(4, fillW), 4, 2, accent()); }
+            glow(c, kx - 3, by - 1, 6, 6, 3, accent(), 0x50);
+            Draw.roundRect(c, kx - 3, by - 1, 6, 6, 3, 0xFFFFFFFF);
+        } else {
+            c.fill(x, by, x + w, by + 4, FIELD);
+            c.fill(x, by, kx, by + 4, accent());
+            c.fill(kx - 2, by - 3, kx + 2, by + 7, TEXT);
+        }
         hits.add(new Hit(x - 3, by - 5, w + 6, 14, set, set));
     }
 
@@ -155,13 +187,28 @@ public final class SettingsScreen extends Screen {
         Config cfg = Config.get();
         int acc = accent();
 
-        c.fill(0, 0, width, height, DIM);
-        c.fill(px - 1, py - 1, px + pw + 1, py + ph + 1, BORDER);
-        c.fill(px, py, px + pw, py + ph, PANEL);
+        boolean g = glass();
+        c.fill(0, 0, width, height, g ? 0xC006080E : DIM);
+        if (g) {
+            glow(c, px + pw / 2 - 90, py + ph - 14, 180, 10, 5, acc, 0x40); // soft glow under the panel, like the reference
+            Draw.roundRect(c, px - 1, py - 1, pw + 2, ph + 2, 13, 0x26FFFFFF);
+            Draw.roundRect(c, px, py, pw, ph, 12, 0xFF111320);
+            Draw.roundRect(c, px + 2, py + 2, pw - 4, 12, 10, 0x0AFFFFFF);
+            card(c, px + 8, py + 28, 162, 62);
+            card(c, px + 8, py + 94, 162, 46);
+            card(c, px + 8, py + 144, 162, 70);
+            card(c, px + pw - 14 - 100 - 8, py + 28, 116, 188);
+        } else {
+            c.fill(px - 1, py - 1, px + pw + 1, py + ph + 1, BORDER);
+            c.fill(px, py, px + pw, py + ph, PANEL);
+        }
 
         c.drawText(textRenderer, "Last.fm HUD", px + 14, py + 10, acc, false);
-        c.drawText(textRenderer, "Right Shift to close", px + pw - 14 - textRenderer.getWidth("Right Shift to close"), py + 10, MUTED, false);
-        c.fill(px + 14, py + 22, px + pw - 14, py + 23, BORDER);
+        // theme switch (top right)
+        String themeLabel = "Theme: " + (g ? "Glass" : "Flat");
+        int tw = textRenderer.getWidth(themeLabel) + 12;
+        button(c, themeLabel, px + pw - 14 - tw, py + 6, tw, 15, false, mx, my, (x, y) -> cfg.guiTheme = glass() ? "flat" : "glass");
+        if (!g) c.fill(px + 14, py + 22, px + pw - 14, py + 23, BORDER);
 
         int x0 = px + 14;
         // toggles
@@ -187,11 +234,20 @@ public final class SettingsScreen extends Screen {
 
         // text fields
         c.drawText(textRenderer, "Last.fm user", x0, py + 145, MUTED, false);
-        c.fill(x0, py + 155, x0 + 150, py + 173, userField.isFocused() ? acc : FIELD);
-        c.fill(x0 + 1, py + 156, x0 + 149, py + 172, FIELD);
         c.drawText(textRenderer, "API key", x0, py + 179, MUTED, false);
-        c.fill(x0, py + 189, x0 + 150, py + 207, keyField.isFocused() ? acc : FIELD);
-        c.fill(x0 + 1, py + 190, x0 + 149, py + 206, FIELD);
+        if (g) {
+            if (userField.isFocused()) glow(c, x0, py + 155, 150, 18, 6, acc, 0x40);
+            Draw.roundRect(c, x0, py + 155, 150, 18, 6, userField.isFocused() ? acc : 0xFF2A2F40);
+            Draw.roundRect(c, x0 + 1, py + 156, 148, 16, 5, 0xFF141722);
+            if (keyField.isFocused()) glow(c, x0, py + 189, 150, 18, 6, acc, 0x40);
+            Draw.roundRect(c, x0, py + 189, 150, 18, 6, keyField.isFocused() ? acc : 0xFF2A2F40);
+            Draw.roundRect(c, x0 + 1, py + 190, 148, 16, 5, 0xFF141722);
+        } else {
+            c.fill(x0, py + 155, x0 + 150, py + 173, userField.isFocused() ? acc : FIELD);
+            c.fill(x0 + 1, py + 156, x0 + 149, py + 172, FIELD);
+            c.fill(x0, py + 189, x0 + 150, py + 207, keyField.isFocused() ? acc : FIELD);
+            c.fill(x0 + 1, py + 190, x0 + 149, py + 206, FIELD);
+        }
 
         // colour wheel
         int wx = px + pw - 14 - 100, wy = py + 30;
@@ -216,10 +272,18 @@ public final class SettingsScreen extends Screen {
         // brightness
         int by = py + 148;
         c.drawText(textRenderer, "Brightness", wx, by - 10, MUTED, false);
-        c.fill(wx, by + 2, wx + 100, by + 6, FIELD);
-        c.fill(wx, by + 2, wx + (int) (100 * (val - 0.35f) / 0.65f), by + 6, acc);
-        int kx = wx + (int) (100 * (val - 0.35f) / 0.65f);
-        c.fill(kx - 2, by - 1, kx + 2, by + 9, TEXT);
+        int bfill = (int) (100 * (val - 0.35f) / 0.65f);
+        int kx = wx + bfill;
+        if (g) {
+            Draw.roundRect(c, wx, by + 2, 100, 4, 2, 0xFF262B3A);
+            if (bfill > 0) Draw.roundRect(c, wx, by + 2, Math.max(4, bfill), 4, 2, acc);
+            glow(c, kx - 3, by + 1, 6, 6, 3, acc, 0x50);
+            Draw.roundRect(c, kx - 3, by + 1, 6, 6, 3, 0xFFFFFFFF);
+        } else {
+            c.fill(wx, by + 2, wx + 100, by + 6, FIELD);
+            c.fill(wx, by + 2, kx, by + 6, acc);
+            c.fill(kx - 2, by - 1, kx + 2, by + 9, TEXT);
+        }
         Act bright = (x, y) -> {
             val = (float) (0.35 + 0.65 * Math.max(0, Math.min(1, (x - fwx) / 100.0)));
             applyWheelColor();
@@ -228,12 +292,14 @@ public final class SettingsScreen extends Screen {
         hits.add(new Hit(wx - 3, by - 4, 106, 16, bright, bright));
 
         // preview + presets
-        c.fill(wx, py + 166, wx + 100, py + 180, acc);
+        if (g) { glow(c, wx, py + 166, 100, 14, 6, acc, 0x40); Draw.roundRect(c, wx, py + 166, 100, 14, 6, acc); }
+        else c.fill(wx, py + 166, wx + 100, py + 180, acc);
         String hex = String.format("#%06X", cfg.accentColor & 0xFFFFFF);
         c.drawText(textRenderer, hex, wx + (100 - textRenderer.getWidth(hex)) / 2, py + 170, 0xFF101014, false);
         for (int i = 0; i < PRESETS.length; i++) {
             int col = PRESETS[i], sx = wx + i * 17;
-            c.fill(sx, py + 186, sx + 15, py + 201, 0xFF000000 | col);
+            if (g) Draw.roundRect(c, sx, py + 186, 15, 15, 5, 0xFF000000 | col);
+            else c.fill(sx, py + 186, sx + 15, py + 201, 0xFF000000 | col);
             hits.add(new Hit(sx, py + 186, 15, 15, (x, y) -> {
                 cfg.accentColor = col;
                 cfg.customAccent = true;

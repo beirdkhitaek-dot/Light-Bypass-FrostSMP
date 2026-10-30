@@ -20,6 +20,7 @@ public final class Config {
     public int lyricsOffsetMs = 0;
     public int accentColor = 0xE0457B;
     public boolean customAccent = false;
+    public String guiTheme = "flat";
 
     private static Config instance = new Config();
 
@@ -43,6 +44,7 @@ public final class Config {
         if (instance.apiKey == null) instance.apiKey = "";
         if (instance.user == null) instance.user = "";
         if (instance.style == null || instance.style.isBlank()) instance.style = "glass";
+        if (instance.guiTheme == null || !(instance.guiTheme.equals("flat") || instance.guiTheme.equals("glass"))) instance.guiTheme = "flat";
         if (instance.scale < 0.5f || instance.scale > 4f) instance.scale = 1.0f;
         instance.lyricsOffsetMs = Math.max(-10000, Math.min(10000, instance.lyricsOffsetMs));
         save();

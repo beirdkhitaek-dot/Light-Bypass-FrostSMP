@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 env:
-  VERSION: 1.4.0
+  VERSION: 1.5.0
 
 jobs:
   build:
@@ -41,7 +41,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: lastfm-hud-v${{ env.VERSION }}
-          name: "Last.fm HUD ${{ env.VERSION }} - settings GUI (Right Shift) with colour wheel"
+          name: "Last.fm HUD ${{ env.VERSION }} - Glass GUI theme"
           body: |
             Standalone Last.fm now-playing HUD for Fabric 1.21.11 (works on Android/Zalith).
             Setup: /lastfmhud key <api key>, then /lastfmhud user <username>. See lastfm-hud/README.md.
