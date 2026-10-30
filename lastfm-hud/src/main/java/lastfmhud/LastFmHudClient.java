@@ -5,8 +5,14 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import lastfmhud.gui.SettingsScreen;
 import lastfmhud.style.HudStyles;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.util.InputUtil;
+import net.minecraft.util.Identifier;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
@@ -17,6 +23,13 @@ public final class LastFmHudClient implements ClientModInitializer {
     public void onInitializeClient() {
         Config.load();
         LastFm.start();
+        KeyBinding openKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.lastfmhud.open", InputUtil.Type.KEYSYM, 344,
+            KeyBinding.Category.create(Identifier.of("lastfmhud", "main")))); // 344 = Right Shift
+        ClientTickEvents.END_CLIENT_TICK.register(mc -> {
+            while (openKey.wasPressed()) {
+                if (mc.currentScreen == null) mc.setScreen(new SettingsScreen());
+            }
+        });
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
             LiteralArgumentBuilder<FabricClientCommandSource> styleNode = ClientCommandManager.literal("style");
             for (String id : HudStyles.ids()) {
@@ -45,6 +58,11 @@ public final class LastFmHudClient implements ClientModInitializer {
                     Config.get().enabled = !Config.get().enabled;
                     Config.save();
                     return say(ctx, Config.get().enabled ? "HUD on" : "HUD off");
+                }))
+                .then(ClientCommandManager.literal("gui").executes(ctx -> {
+                    net.minecraft.client.MinecraftClient.getInstance().send(() ->
+                        net.minecraft.client.MinecraftClient.getInstance().setScreen(new SettingsScreen()));
+                    return 1;
                 }))
                 .then(styleNode)
                 .then(ClientCommandManager.literal("lyrics").executes(ctx -> {

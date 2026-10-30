@@ -17,3 +17,7 @@ Lyrics: synced lyrics from lrclib.net show under the card when found. Last.fm ha
 `/lastfmhud syncoffset` to nudge timing.
 Config file: `config/lastfmhud.json`. Shows title, artist, cover art and an estimated progress bar. Display only (Last.fm
 cannot control playback).
+
+## Settings GUI (1.4.0)
+Press **Right Shift** (or `/lastfmhud gui`, or tap the HUD while chat is open) to open a flat dark settings screen with an
+HSV colour wheel, style buttons, size / lyrics-sync sliders and Last.fm user + API key fields. No chat commands needed.

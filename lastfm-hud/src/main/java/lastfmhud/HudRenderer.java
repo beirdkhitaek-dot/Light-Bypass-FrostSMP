@@ -23,7 +23,7 @@ public final class HudRenderer {
     // on-screen bounds in GUI units (updated every frame we draw); width 0 = not drawn
     private static float bx, by, bw, bh;
     private static boolean dragging;
-    private static double grabX, grabY;
+    private static double grabX, grabY, pressX, pressY;
 
     private HudRenderer() {}
 
@@ -108,9 +108,9 @@ public final class HudRenderer {
         if (n != null) {
             long elapsed = System.currentTimeMillis() - n.startedMs();
             String[] lyr = c.lyrics ? Lyrics.around(elapsed + c.lyricsOffsetMs) : null;
-            frame = new Frame(n.title(), n.artist(), elapsed, n.durationMs(), texture, accent, lyr);
+            frame = new Frame(n.title(), n.artist(), elapsed, n.durationMs(), texture, c.customAccent ? 0xFF000000 | c.accentColor : accent, lyr);
         } else {
-            frame = new Frame("Last.fm HUD", "Drag me to move", 0, 0, null, DEFAULT_ACCENT, null);
+            frame = new Frame("Last.fm HUD", "Drag me, tap to open settings", 0, 0, null, c.customAccent ? 0xFF000000 | c.accentColor : DEFAULT_ACCENT, null);
         }
 
         float scale = c.scale;
@@ -156,6 +156,8 @@ public final class HudRenderer {
                 dragging = true;
                 grabX = m[0] - bx;
                 grabY = m[1] - by;
+                pressX = m[0];
+                pressY = m[1];
                 return true;
             }
             return false;
@@ -163,6 +165,10 @@ public final class HudRenderer {
         if (action == 0 && dragging) {
             dragging = false;
             Config.save();
+            double[] m = mouseGui(mc);
+            if (Math.abs(m[0] - pressX) < 4 && Math.abs(m[1] - pressY) < 4) { // a tap, not a drag: open settings
+                mc.execute(() -> mc.setScreen(new lastfmhud.gui.SettingsScreen()));
+            }
             return true;
         }
         return false;

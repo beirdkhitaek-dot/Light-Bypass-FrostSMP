@@ -18,6 +18,8 @@ public final class Config {
     public String style = "glass";
     public boolean lyrics = true;
     public int lyricsOffsetMs = 0;
+    public int accentColor = 0xE0457B;
+    public boolean customAccent = false;
 
     private static Config instance = new Config();
 
